@@ -1,11 +1,17 @@
-const express = require('express');
-const cors = require('cors');
-const bodyParser = require('body-parser');
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+import express from 'express';
+import cors from 'cors';
+import bodyParser from 'body-parser';
+import sqlite3 from 'sqlite3';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Fix for __dirname in ES Modules (it doesn't exist by default)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = 5000;
+const verboseSqlite = sqlite3.verbose();
 
 // Middleware
 app.use(cors());
@@ -13,7 +19,7 @@ app.use(bodyParser.json());
 
 // Database Setup (SQLite for easy local persistence)
 const dbPath = path.resolve(__dirname, 'archive.db');
-const db = new sqlite3.Database(dbPath, (err) => {
+const db = new verboseSqlite.Database(dbPath, (err) => {
     if (err) {
         console.error('Error opening database', err.message);
     } else {
@@ -90,6 +96,9 @@ function seedData() {
             }
         });
     });
+    
+    // Check if items exist, if not, seed MOCK_DB_ITEMS logic could go here
+    // For now, we rely on the Admin Dashboard to add items
 }
 
 // ================= ROUTES =================
@@ -193,5 +202,5 @@ app.post('/api/auth/login', (req, res) => {
 
 // Start Server
 app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`✅ Backend Server running at http://localhost:${PORT}`);
 });
