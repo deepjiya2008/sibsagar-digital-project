@@ -26,7 +26,7 @@ const Resources = () => {
 
   useEffect(() => {
     // This connects to the /api/resources route in your server.js
-    fetch('http://localhost:5000/api/resources')
+    fetch(`${import.meta.env.VITE_API_URL}/api/resources`)
       .then((res) => res.json())
       .then((data) => setResources(data))
       .catch((err) => console.error("Error fetching resources:", err));
