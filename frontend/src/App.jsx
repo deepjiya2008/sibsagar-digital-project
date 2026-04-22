@@ -21,7 +21,7 @@ const {
  * ==========================================
  */
 const API_URL = import.meta.env.VITE_API_URL + "/api"; 
-const LOGO_URL = "<img src="/Logo.png" />"; // Placeholder Logo
+const LOGO_URL = "/Logo.png";
 const HERO_BG = "ranghar.jpg"; // Reliable Wikimedia Link
 const InfoboxRenderer = ({ label, value, type, theme, isDarkMode, onViewMap }) => {
   return (
