@@ -16,7 +16,7 @@ const {
   Download, Wifi, WifiOff, Database, Link: LinkIcon 
 } = Icons;
 
-/ * ==========================================
+/* ==========================================
  * CONFIGURATION & MOCK DATA
  * ==========================================
  */
