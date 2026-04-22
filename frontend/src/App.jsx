@@ -1,22 +1,22 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import Resources from './pages/Resources';
-// Standard imports that work via the main export
-import { 
+
+// Import everything as a single object to ensure the bundler can resolve it
+import * as Icons from 'lucide-react';
+
+// Destructure the ones you need. 
+// Note: For icons that had names like 'Image', they are aliased to 'ImageIcon'
+const { 
   Search, Book, Landmark, Crown, Sword, Scroll, Menu, ChevronRight, 
   Home, User, Clock, ArrowRight, Brain, MapPin, X, Trophy, CheckCircle, 
   AlertCircle, Moon, Sun, Bookmark, Volume2, GitMerge, ArrowDown, 
   Lock, Plus, Trash2, Edit, LogOut, Save, GraduationCap, Building2, FileText, 
-  Info, MinusCircle, PlusCircle, Image as ImageIcon, Mail, Phone, 
-  Share2, Type, Quote, MessageSquare, Download, Wifi, WifiOff, Database, 
-  Link as LinkIcon 
-} from 'lucide-react';
+  Info, MinusCircle, PlusCircle, Image: ImageIcon, Mail, Phone, 
+  Facebook, Twitter, Instagram, Share2, Type, Quote, MessageSquare, 
+  Download, Wifi, WifiOff, Database, Link: LinkIcon 
+} = Icons;
 
-// Direct imports for icons causing the MISSING_EXPORT error
-import Facebook from 'lucide-react/dist/esm/icons/facebook';
-import Twitter from 'lucide-react/dist/esm/icons/twitter';
-import Instagram from 'lucide-react/dist/esm/icons/instagram';
-/**
- * ==========================================
+/ * ==========================================
  * CONFIGURATION & MOCK DATA
  * ==========================================
  */
