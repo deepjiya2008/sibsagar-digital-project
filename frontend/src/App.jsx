@@ -1,14 +1,14 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import Resources from './pages/Resources';
 import { 
-  Search, Book, Landmark, Crown, Scroll, Menu, ChevronRight, 
-  Home, User, Sword, Clock, ArrowRight, Brain, MapPin, X, Trophy, CheckCircle, 
+  Search, Book, Landmark, Crown, Sword, Scroll, Menu, ChevronRight, 
+  Home, User, Clock, ArrowRight, Brain, MapPin, X, Trophy, CheckCircle, 
   AlertCircle, Moon, Sun, Bookmark, Volume2, GitMerge, ArrowDown, 
   Lock, Plus, Trash2, Edit, LogOut, Save, GraduationCap, Building2, FileText, 
-  Info, MinusCircle, PlusCircle, Image as ImageIcon, Printer, Mail, Phone, 
-  Globe, Facebook, Twitter, Instagram, Share2, Type, Quote, 
-  MessageSquare, Download, Upload, Wifi, WifiOff, Database, ServerCrash, Link as LinkIcon
+  Info, MinusCircle, PlusCircle, Image as ImageIcon, Mail, Phone, 
+  Facebook, Twitter, Instagram, Share2, Type, Quote, MessageSquare, 
+  Download, Wifi, WifiOff, Database, Link as LinkIcon 
 } from 'lucide-react';
-
 /**
  * ==========================================
  * CONFIGURATION & MOCK DATA
@@ -17,7 +17,33 @@ import {
 const API_URL = "http://localhost:5000/api"; 
 const LOGO_URL = "Logo.png"; // Placeholder Logo
 const HERO_BG = "ranghar.jpg"; // Reliable Wikimedia Link
-
+const InfoboxRenderer = ({ label, value, type, theme, isDarkMode, onViewMap }) => {
+  return (
+    <tr className={`border-b last:border-0 ${theme.divider}`}>
+      <th className="py-2 px-4 text-xs uppercase text-stone-500">{label}</th>
+      <td className="py-2 px-4">
+        {type === 'coordinates' ? (
+          <div>
+            <button onClick={() => onViewMap(value)} className="text-amber-700 underline text-sm">
+              {value}
+            </button>
+            {/* Small map preview */}
+            <div className="w-full h-20 mt-2 bg-stone-200 rounded overflow-hidden">
+                <iframe 
+                    src={`https://maps.google.com/maps?q=${value}&output=embed`}
+                    className="w-full h-full border-0"
+                />
+            </div>
+          </div>
+        ) : type === 'link' ? (
+          <a href={value} className="text-blue-600 underline" target="_blank">{value}</a>
+        ) : (
+          <span>{value}</span>
+        )}
+      </td>
+    </tr>
+  );
+};
 const CATEGORIES = [
   { id: 'all', label: 'ALL ARCHIVES', icon: Book, labelAs: "সকলো তথ্য", labelHi: "सभी अभिलेखागार" },
   { id: 'kings', label: 'SWARGADEOS', icon: Crown, labelAs: "স্বৰ্গদেউসকল", labelHi: "स्वर्गदेव (राजा)" },
@@ -387,6 +413,9 @@ const TRANSLATIONS = {
     sysOffline: "सर्वर डिस्कनेक्ट"
   }
 };
+// Ensure this is defined outside the return statement in App component
+// Empty dependency array ensures this function reference stays the same
+// 1. Add a state to store coordinates
 
 /**
  * ==========================================
@@ -426,7 +455,40 @@ const App = () => {
   const [savedIds, setSavedIds] = useState([]);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [lang, setLang] = useState('en'); 
-  
+  // Add this inside your App component
+const [quizForm, setQuizForm] = useState({ question: '', options: [], correct: 0 });
+
+const saveNewQuiz = async () => {
+    try {
+        const res = await fetch(`${API_URL}/admin/quiz`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}` // Ensure auth is sent if required
+            },
+            body: JSON.stringify(quizForm)
+        });
+        
+        if (res.ok) {
+            alert("Quiz saved to database!");
+            setQuizForm({ question: '', options: [], correct: 0 });
+            fetchQuizzes(); // Refresh the list from DB
+        } else {
+            const errData = await res.json();
+            alert(`Error saving quiz: ${errData.error || 'Unknown error'}`);
+        }
+    } catch (err) { 
+        console.error("Backend unreachable:", err);
+        alert("Cannot save: Backend is offline.");
+    }
+};
+const [quizResults, setQuizResults] = useState([]);
+
+const fetchResults = async () => {
+    const res = await fetch(`${API_URL}/quiz/results`);
+    const data = await res.json();
+    setQuizResults(data);
+};
   // Data States - Populated via API
   const [dbItems, setDbItems] = useState([]);
   const [resources, setResources] = useState([]);
@@ -465,12 +527,67 @@ const App = () => {
   // Comments & Inbox
   const [comments, setComments] = useState({}); 
   const [newComment, setNewComment] = useState('');
-  
+  const handleDownload = useCallback(async (url, filename) => {
+      try {
+          const response = await fetch(url);
+          const blob = await response.blob();
+          const blobUrl = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.setAttribute('download', `${filename}.pdf`);
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          window.URL.revokeObjectURL(blobUrl);
+      } catch (error) {
+          console.error("Download failed:", error);
+          window.open(url, '_blank');
+      }
+  }, []);
   // Quiz State
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [quizScore, setQuizScore] = useState(0);
   const [showQuizResult, setShowQuizResult] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
+  const [dbQuizzes, setDbQuizzes] = useState([]);
+
+/* Add a fetch effect for quizzes */
+const fetchQuizzes = async () => {
+    try {
+        const res = await fetch(`${API_URL}/quizzes`);
+        if (!res.ok) throw new Error("Failed to fetch");
+        const data = await res.json();
+        setDbQuizzes(data);
+    } catch (err) { 
+        console.error("Error fetching quizzes from DB", err);
+        setDbQuizzes([]); // Clear or handle offline state
+    }
+};
+const [leaderboard, setLeaderboard] = useState([]);
+
+const [mapCenter, setMapCenter] = useState(null);
+
+// 2. Update handleViewMap
+const handleViewMap = (coords) => {
+    // 1. Switch to Map View
+     setMapCenter(coords);
+    setView('map');
+    // 2. Logic to pass coordinates to your map frame
+    // Note: You can store 'activeCoords' in state to pass to your iframe
+    console.log("Loading map for:", coords);
+};
+
+
+const loadLeaderboard = async () => {
+    const res = await fetch(`${API_URL}/quiz/results`);
+    const data = await res.json();
+    setLeaderboard(data);
+};
+const handleEditClick = (item) => { 
+  // Deep copy the item to prevent reference issues
+  setNewItem(JSON.parse(JSON.stringify(item))); 
+  setShowAddModal(true); 
+};
 
   const t = (key) => TRANSLATIONS[lang][key] || TRANSLATIONS['en'][key];
 
@@ -560,6 +677,7 @@ const App = () => {
       fetchItems();
       fetchResources();
       fetchPages();
+      fetchQuizzes();
 
       // Initialize Google Translate Script safely
       window.googleTranslateElementInit = () => {
@@ -856,8 +974,7 @@ const App = () => {
   };
   const addInfoboxRow = () => setNewItem({...newItem, infobox: [...newItem.infobox, { label: '', value: '' }]});
   const removeInfoboxRow = (idx) => setNewItem({...newItem, infobox: newItem.infobox.filter((_, i) => i !== idx)});
-  const handleEditClick = (item) => { setNewItem({...item, content: item.content || [], infobox: item.infobox || []}); setShowAddModal(true); };
-
+ 
   const handleQuizAnswer = (idx) => {
     setSelectedAnswer(idx);
     setTimeout(() => {
@@ -1041,7 +1158,7 @@ const App = () => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden w-full relative print-full-width">
+        <main className="flex-1 flex flex-col h-full overflow-y-auto w-full relative print-full-width">
         <header className={`h-16 border-b backdrop-blur-md flex items-center px-4 md:px-8 justify-between shrink-0 z-10 sticky top-0 ${theme.header} ${theme.divider}`}>
           <div className="flex items-center gap-4 w-full">
             <button className={`md:hidden p-2 rounded-md ${theme.inactiveNav}`} onClick={() => setIsSidebarOpen(true)}><Menu className="w-5 h-5" /></button>
@@ -1089,102 +1206,233 @@ const App = () => {
 
             {/* MAIN VIEWS (Show regardless of backend online status now) */}
             {!isLoading && (
-                <>
-                    {/* ADMIN DASHBOARD */}
-                    {view === 'admin' && token ? (
-                        <div className="max-w-7xl mx-auto p-6 md:p-12 animate-in fade-in duration-300">
-                            <div className="flex justify-between items-center mb-8">
-                                <div>
-                                    <h2 className={`text-3xl font-serif font-bold ${theme.text}`}>{t('dashboard')}</h2>
-                                    <p className={theme.textMuted}>Manage the Sibsagar Digital Archives</p>
-                                </div>
-                                <div className="flex items-center gap-4">
-                                    <span className={`text-sm font-bold flex items-center gap-2 px-3 py-1 rounded-full border ${backendOnline ? 'text-green-600 bg-green-50 border-green-200' : 'text-orange-600 bg-orange-50 border-orange-200'}`}>
-                                        <Database className="w-4 h-4" /> {backendOnline ? t('sysOnline') : t('sysOffline')}
-                                    </span>
-                                    <button onClick={handleLogout} className="px-4 py-2 border border-red-200 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors flex items-center gap-2">
-                                        <LogOut className="w-4 h-4" /> Logout
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <div className={`flex gap-4 mb-6 border-b ${theme.divider}`}>
-                                <button onClick={() => setAdminTab('content')} className={`pb-2 px-4 font-bold transition-colors ${adminTab === 'content' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-stone-400 hover:text-stone-600'}`}>{t('manageContent')}</button>
-                                <button onClick={() => setAdminTab('pages')} className={`pb-2 px-4 font-bold transition-colors ${adminTab === 'pages' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-stone-400 hover:text-stone-600'}`}>{t('managePages')}</button>
-                                <button onClick={() => setAdminTab('resources')} className={`pb-2 px-4 font-bold transition-colors ${adminTab === 'resources' ? 'border-b-2 border-amber-500 text-amber-600' : 'text-stone-400 hover:text-stone-600'}`}>{t('manageResources')}</button>
-                            </div>
+                    <>
+                  {view === 'admin' && token ? (
+    <div className="max-w-7xl mx-auto p-6 md:p-12 animate-in fade-in duration-300">
+        {/* Dashboard Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div>
+                <h2 className={`text-3xl font-serif font-bold ${theme.text}`}>{t('dashboard')}</h2>
+                <p className={theme.textMuted}>Manage the Sibsagar Digital Archives & Heritage Collection</p>
+            </div>
+            <div className="flex items-center gap-3">
+                <span className={`text-xs font-bold flex items-center gap-2 px-3 py-1.5 rounded-full border ${backendOnline ? 'text-green-600 bg-green-50 border-green-200' : 'text-orange-600 bg-orange-50 border-orange-200'}`}>
+                    <Database className="w-3.5 h-3.5" /> {backendOnline ? t('sysOnline') : t('sysOffline')}
+                </span>
+                <button onClick={handleLogout} className="px-4 py-1.5 border border-red-200 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors flex items-center gap-2 text-sm font-bold">
+                    <LogOut className="w-4 h-4" /> Logout
+                </button>
+            </div>
+        </div>
+        
+        {/* Navigation Tabs - Added Quiz Admin */}
+        <div className={`flex gap-2 mb-6 border-b ${theme.divider} overflow-x-auto pb-1 no-scrollbar`}>
+            <button 
+                onClick={() => setAdminTab('content')} 
+                className={`pb-2 px-4 font-bold whitespace-nowrap transition-all border-b-2 ${adminTab === 'content' ? 'border-amber-500 text-amber-600' : 'border-transparent text-stone-400 hover:text-stone-600'}`}
+            >
+                {t('manageContent')}
+            </button>
+            <button 
+                onClick={() => setAdminTab('quiz-admin')} 
+                className={`pb-2 px-4 font-bold whitespace-nowrap transition-all border-b-2 ${adminTab === 'quiz-admin' ? 'border-amber-500 text-amber-600' : 'border-transparent text-stone-400 hover:text-stone-600'}`}
+            >
+                {t('quiz')} Bank
+            </button>
+            <button 
+                onClick={() => setAdminTab('pages')} 
+                className={`pb-2 px-4 font-bold whitespace-nowrap transition-all border-b-2 ${adminTab === 'pages' ? 'border-amber-500 text-amber-600' : 'border-transparent text-stone-400 hover:text-stone-600'}`}
+            >
+                {t('managePages')}
+            </button>
+            <button 
+                onClick={() => setAdminTab('resources')} 
+                className={`pb-2 px-4 font-bold whitespace-nowrap transition-all border-b-2 ${adminTab === 'resources' ? 'border-amber-500 text-amber-600' : 'border-transparent text-stone-400 hover:text-stone-600'}`}
+            >
+                {t('manageResources')}
+            </button>
+        </div>
 
-                            {adminTab === 'content' && (
-                                <div className={`rounded-xl border shadow-sm overflow-hidden ${theme.card}`}>
-                                    <div className={`p-4 border-b ${theme.divider} flex justify-between items-center`}>
-                                        <span className={`font-bold ${theme.text}`}>Artifact Registry</span>
-                                        <button onClick={() => { setNewItem({ title: '', category: 'kings', year: '', summary: '', image: '', content: [{ header: '', text: '', image: '', caption: '' }], infobox: [{ label: '', value: '' }] }); setShowAddModal(true); }} className="bg-amber-600 text-white px-4 py-2 rounded-lg flex gap-2 text-sm font-bold hover:bg-amber-700 shadow-sm"><Plus className="w-4 h-4" /> {t('addNew')}</button>
-                                    </div>
-                                    <table className="w-full text-left border-collapse">
-                                        <thead className={`text-xs uppercase font-bold ${isDarkMode ? 'bg-stone-900 text-stone-400' : 'bg-stone-100 text-stone-500'}`}>
-                                            <tr><th className="p-4">Title</th><th className="p-4">Category</th><th className="p-4">Year</th><th className="p-4 text-right">Actions</th></tr>
-                                        </thead>
-                                        <tbody className={theme.text}>
-                                            {dbItems.length === 0 ? (
-                                                <tr><td colSpan="4" className="p-8 text-center text-stone-500 italic">No artifacts found.</td></tr>
-                                            ) : (
-                                                dbItems.map((item) => (
-                                                    <tr key={item.id} className={`border-b last:border-0 hover:bg-stone-500/5 transition-colors ${theme.divider}`}>
-                                                        <td className="p-4 font-medium">{item.title}</td>
-                                                        <td className="p-4"><span className={`px-2 py-1 rounded-full text-xs font-bold ${theme.accentBg}`}>{item.category}</span></td>
-                                                        <td className="p-4 font-mono text-sm">{item.year}</td>
-                                                        <td className="p-4 text-right">
-                                                            <div className="flex items-center justify-end gap-2">
-                                                              <button onClick={() => handleEditClick(item)} className="p-1.5 hover:bg-blue-100 text-blue-600 rounded"><Edit className="w-4 h-4" /></button>
-                                                              <button onClick={() => handleDelete(item.id)} className="text-red-600 hover:bg-red-50 p-2 rounded transition-colors"><Trash2 className="w-4 h-4" /></button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ))
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                            
-                            {adminTab === 'pages' && (
-                                <div className={`grid gap-4 ${theme.text}`}>
-                                    {['about', 'speech', 'district'].map(key => (
-                                        <div key={key} className={`p-6 rounded-lg border ${theme.card} flex justify-between items-center`}>
-                                            <div>
-                                                <h3 className="font-bold text-lg mb-1">{t(key === 'about' ? 'aboutProject' : key === 'speech' ? 'authSpeech' : 'districtInfo')}</h3>
-                                                <p className={`text-sm ${theme.textMuted} line-clamp-1`}>{cmsContent[key]?.text || 'No content'}</p>
-                                            </div>
-                                            <button onClick={() => { setEditingCms(key); setTempCmsText(cmsContent[key]?.text || ''); }} className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-amber-700">Edit Page</button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                             {adminTab === 'resources' && (
-                                <div className={`rounded-xl border shadow-sm overflow-hidden ${theme.card}`}>
-                                    <div className={`p-4 border-b ${theme.divider} flex justify-between items-center`}>
-                                        <span className={`font-bold ${theme.text}`}>Digital Library</span>
-                                        <button onClick={() => setShowResourceModal(true)} className="bg-amber-600 text-white px-4 py-2 rounded-lg flex gap-2 text-sm font-bold hover:bg-amber-700 shadow-sm"><Plus className="w-4 h-4" /> {t('uploadPdf')}</button>
-                                    </div>
-                                    <ul className={`divide-y ${theme.divider}`}>
-                                        {resources.map(res => (
-                                            <li key={res.id} className="p-4 flex justify-between items-center hover:bg-stone-500/5">
-                                                <div>
-                                                    <div className={`font-bold ${theme.text}`}>{res.title}</div>
-                                                    <div className={`text-sm ${theme.textMuted}`}>{res.author} • {res.type}</div>
-                                                    {res.url && <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1"><LinkIcon className="w-3 h-3"/> View Document</a>}
+        {/* SCROLLABLE CONTENT AREA */}
+        <div className="max-h-[65vh] overflow-y-auto pr-2 custom-admin-scroll space-y-6">
+            
+            {/* 1. ARTIFACT CONTENT MANAGEMENT */}
+            {adminTab === 'content' && (
+                <div className={`rounded-xl border shadow-sm overflow-hidden ${theme.card} animate-in slide-in-from-right duration-300`}>
+                    <div className={`p-4 border-b ${theme.divider} flex justify-between items-center bg-stone-500/5`}>
+                        <span className={`font-bold ${theme.text}`}>Artifact Registry</span>
+                        <button 
+                            onClick={() => { 
+                                setNewItem({ title: '', category: 'kings', year: '', summary: '', image: '', content: [{ header: '', text: '', image: '', caption: '' }], infobox: [{ label: '', value: '' }] }); 
+                                setShowAddModal(true); 
+                            }} 
+                            className="bg-amber-600 text-white px-4 py-2 rounded-lg flex gap-2 text-sm font-bold hover:bg-amber-700 shadow-sm transition-all"
+                        >
+                            <Plus className="w-4 h-4" /> {t('addNew')}
+                        </button>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead className={`text-xs uppercase font-bold sticky top-0 z-10 ${isDarkMode ? 'bg-stone-900 text-stone-400' : 'bg-stone-100 text-stone-500'}`}>
+                                <tr>
+                                    <th className="p-4">Title</th>
+                                    <th className="p-4">Category</th>
+                                    <th className="p-4">Year</th>
+                                    <th className="p-4 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className={theme.text}>
+                                {dbItems.length === 0 ? (
+                                    <tr><td colSpan="4" className="p-8 text-center text-stone-500 italic">No artifacts found.</td></tr>
+                                ) : (
+                                    dbItems.map((item) => (
+                                        <tr key={item.id} className={`border-b last:border-0 hover:bg-stone-500/5 transition-colors ${theme.divider}`}>
+                                            <td className="p-4 font-medium">{item.title}</td>
+                                            <td className="p-4"><span className={`px-2 py-1 rounded-full text-[10px] font-bold ${theme.accentBg}`}>{item.category.toUpperCase()}</span></td>
+                                            <td className="p-4 font-mono text-sm">{item.year}</td>
+                                            <td className="p-4 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                  <button onClick={() => handleEditClick(item)} className="p-2 hover:bg-blue-100 text-blue-600 rounded-md transition-colors" title="Edit"><Edit className="w-4 h-4" /></button>
+                                                  <button onClick={() => handleDelete(item.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Delete"><Trash2 className="w-4 h-4" /></button>
                                                 </div>
-                                                <button onClick={() => handleDelete(res.id)} className="text-red-500 hover:text-red-700"><Trash2 className="w-4 h-4" /></button>
-                                            </li>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+
+            {/* 2. QUIZ ADMINISTRATION */}
+{adminTab === 'quiz-admin' && (
+    <div className="space-y-6 animate-in slide-in-from-right duration-300 pb-8">
+        <div className={`p-6 rounded-xl border shadow-sm ${theme.card}`}>
+            <h3 className={`text-xl font-serif font-bold mb-4 ${theme.text}`}>Add New Challenge Question</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div className="md:col-span-2">
+                    <label className="block text-xs font-bold uppercase mb-1 text-stone-500">Question Title</label>
+                    <input 
+                        type="text" 
+                        className={`w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-amber-500 ${theme.input}`}
+                        value={quizForm.question}
+                        onChange={(e) => setQuizForm({...quizForm, question: e.target.value})} 
+                    />
+                </div>
+                <div>
+                    <label className="block text-xs font-bold uppercase mb-1 text-stone-500">Options (Separated by commas)</label>
+                    <input 
+                        type="text" 
+                        placeholder="Option A, Option B, Option C, Option D" 
+                        className={`w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-amber-500 ${theme.input}`}
+                        onChange={(e) => setQuizForm({...quizForm, options: e.target.value.split(',').map(s => s.trim())})} 
+                    />
+                </div>
+                <div>
+                    <label className="block text-xs font-bold uppercase mb-1 text-stone-500">Correct Answer Index (0-3)</label>
+                    <input 
+                        type="number" 
+                        className={`w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-amber-500 ${theme.input}`}
+                        value={quizForm.correct}
+                        onChange={(e) => setQuizForm({...quizForm, correct: parseInt(e.target.value) || 0})} 
+                    />
+                </div>
+            </div>
+            <button 
+                onClick={saveNewQuiz} 
+                className="bg-amber-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-amber-700 shadow-lg transition-all flex items-center gap-2"
+            >
+                <Save className="w-4 h-4" /> Save to Quiz Bank
+            </button>
+        </div>
+
+        {/* Question List Preview - NOW SCROLLABLE */}
+        <div className={`rounded-xl border shadow-sm ${theme.card}`}>
+            <div className={`p-4 border-b ${theme.divider} bg-stone-500/5`}>
+                <span className={`font-bold ${theme.text}`}>Existing Quiz Questions</span>
+            </div>
+            {/* Added fixed height and scrolling here */}
+            <div className="max-h-64 overflow-y-auto divide-y divide-stone-200 dark:divide-stone-800">
+                {dbQuizzes.length > 0 ? (
+                    dbQuizzes.map((q, idx) => (
+                        <div key={idx} className="p-4 hover:bg-stone-500/5 transition-colors group">
+                            <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                    <p className={`font-bold text-sm ${theme.text}`}>{idx + 1}. {q.question}</p>
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                        {/* Use q.options directly since it's already parsed in your server response */}
+                                        {q.options.map((opt, i) => (
+                                            <span key={i} className={`text-[10px] px-2 py-1 rounded border ${i === q.correct_answer ? 'bg-green-100 border-green-200 text-green-700 font-bold' : 'bg-stone-50 dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-500'}`}>
+                                                {opt} {i === q.correct_answer && '✓'}
+                                            </span>
                                         ))}
-                                    </ul>
+                                    </div>
                                 </div>
-                             )}
+                            </div>
                         </div>
-                    
-                    /* LOGIN SCREEN */
-                    ) : view === 'login' ? (
+                    ))
+                ) : (
+                    <div className="p-8 text-center text-stone-500 italic">No quizzes in database.</div>
+                )}
+            </div>
+        </div>
+    </div>
+)}
+            {/* 3. PAGES & CMS MANAGEMENT */}
+            {adminTab === 'pages' && (
+                <div className="grid gap-4 animate-in slide-in-from-right duration-300">
+                    {['about', 'speech', 'district'].map(key => (
+                        <div key={key} className={`p-6 rounded-lg border shadow-sm ${theme.card} flex flex-col md:flex-row justify-between items-center gap-4`}>
+                            <div className="flex-1">
+                                <h3 className={`font-bold text-lg mb-1 font-serif ${theme.text}`}>{t(key === 'about' ? 'aboutProject' : key === 'speech' ? 'authSpeech' : 'districtInfo')}</h3>
+                                <p className={`text-sm ${theme.textMuted} line-clamp-1 italic`}>{cmsContent[key]?.text || 'No content provided.'}</p>
+                            </div>
+                            <button 
+                                onClick={() => { setEditingCms(key); setTempCmsText(cmsContent[key]?.text || ''); }} 
+                                className="w-full md:w-auto bg-amber-600 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-amber-700 transition-all flex items-center justify-center gap-2"
+                            >
+                                <Edit className="w-4 h-4" /> Edit Content
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* 4. DIGITAL RESOURCES MANAGEMENT */}
+            {adminTab === 'resources' && (
+                <div className={`rounded-xl border shadow-sm overflow-hidden ${theme.card} animate-in slide-in-from-right duration-300`}>
+                    <div className={`p-4 border-b ${theme.divider} flex justify-between items-center bg-stone-500/5`}>
+                        <span className={`font-bold ${theme.text}`}>Digital Library Resources</span>
+                        <button 
+                            onClick={() => setShowResourceModal(true)} 
+                            className="bg-amber-600 text-white px-4 py-2 rounded-lg flex gap-2 text-sm font-bold hover:bg-amber-700 shadow-sm transition-all"
+                        >
+                            <Plus className="w-4 h-4" /> {t('uploadPdf')}
+                        </button>
+                    </div>
+                    <ul className={`divide-y ${theme.divider}`}>
+                        {resources.length === 0 ? (
+                            <li className="p-12 text-center text-stone-500 italic">No resources available in the library.</li>
+                        ) : (
+                            resources.map(res => (
+                                <li key={res.id} className="p-4 flex justify-between items-center hover:bg-stone-500/5 transition-colors">
+                                    <div className="min-w-0 flex-1">
+                                        <div className={`font-bold text-sm truncate ${theme.text}`}>{res.title}</div>
+                                        <div className={`text-[11px] ${theme.textMuted}`}>{res.author} • <span className="uppercase text-amber-600 font-bold">{res.type}</span></div>
+                                        {res.url && <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-500 hover:underline flex items-center gap-1 mt-1"><LinkIcon className="w-3 h-3"/> View Document Source</a>}
+                                    </div>
+                                    <button onClick={() => handleDelete(res.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-md transition-colors"><Trash2 className="w-4 h-4" /></button>
+                                </li>
+                            ))
+                        )}
+                    </ul>
+                </div>
+             )}
+        </div>
+    </div>
+/* LOGIN SCREEN */
+): view === 'login' ? (
                         <div className="flex items-center justify-center h-full animate-in fade-in zoom-in-95 duration-300 p-4">
                             <div className={`max-w-md w-full p-8 rounded-xl shadow-2xl border ${theme.card}`}>
                                 <div className="text-center mb-6">
@@ -1320,16 +1568,22 @@ const App = () => {
                                                 </div>
                                             </div>
                                         )}
-                                        <table className="w-full text-sm text-left">
-                                            <tbody>
-                                                {activeArticle.infobox && activeArticle.infobox.map((info, idx) => (
-                                                    <tr key={idx} className={`border-b last:border-0 ${theme.divider}`}>
-                                                        <th className={`py-2 px-4 font-semibold w-2/5 align-top text-xs uppercase ${isDarkMode ? 'text-stone-500' : 'text-stone-600'}`}>{info.label}</th>
-                                                        <td className={`py-2 px-4 font-medium ${isDarkMode ? 'text-stone-300' : 'text-stone-800'}`}>{info.value}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+                                       {/* Find this table in your Article View */}
+                                    <table className="w-full text-sm text-left">
+                                        <tbody>
+                                            {activeArticle.infobox && activeArticle.infobox.map((info, idx) => (
+                                                <InfoboxRenderer 
+                                                    key={idx} 
+                                                    label={info.label} 
+                                                    value={info.value} 
+                                                    type={info.type || 'text'} 
+                                                    theme={theme}
+                                                    isDarkMode={isDarkMode}
+                                                    onViewMap={handleViewMap} // <-- THIS WAS MISSING
+                                                />
+                                            ))}
+                                        </tbody>
+                                    </table>
                                     </div>
                                     {relatedArticles.length > 0 && (
                                         <div className={`rounded-lg p-5 border ${theme.divider} no-print ${isDarkMode ? 'bg-stone-900/50' : 'bg-[#EBE7DE]/50'}`}>
@@ -1347,24 +1601,22 @@ const App = () => {
                                 </div>
                             </div>
                         </article>
+                        
 
                     /* MAP VIEW */
                     ) : view === 'map' ? (
                         <div className={`h-full flex flex-col relative overflow-hidden ${isDarkMode ? 'bg-stone-900' : 'bg-stone-200'}`}>
                             <iframe 
-                                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d114041.04279093844!2d94.6062779!3d26.9829285!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x37471900f64c67b5%3A0x6b4f74d08b3c4f7a!2sSivasagar%2C%20Assam!5e1!3m2!1sen!2sin!4v1709664567890!5m2!1sen!2sin" 
+                                // Replace with your specific Google My Map embed URL
+                                // This URL should point to your saved map with monument pins
+                                src="https://www.google.com/maps/d/embed?mid=YOUR_MAP_ID_HERE" 
                                 width="100%" 
                                 height="100%" 
-                                style={{ border: 0, filter: isDarkMode ? 'invert(0.9) hue-rotate(180deg)' : 'none' }} 
+                                style={{ border: 0 }} 
                                 allowFullScreen="" 
                                 loading="lazy" 
-                                referrerPolicy="no-referrer-when-downgrade"
-                                title="Sivasagar Satellite Map"
+                                title="Sivasagar Heritage Map"
                             ></iframe>
-                            <div className={`absolute top-4 left-4 p-4 backdrop-blur-md rounded shadow border z-10 w-64 ${isDarkMode ? 'bg-stone-900/80 border-stone-700' : 'bg-white/80 border-stone-200'}`}>
-                                <h3 className={`font-bold font-serif ${theme.text}`}>Sivasagar Satellite View</h3>
-                                <p className={`text-xs mt-1 ${theme.textMuted}`}>Live Google Earth view of the historic capital region.</p>
-                            </div>
                         </div>
 
                     /* TIMELINE VIEW */
@@ -1434,42 +1686,63 @@ const App = () => {
         </div>
     </div>
 
-                    /* QUIZ VIEW */
-                    ) : view === 'quiz' ? (
-                        <div className="max-w-3xl mx-auto p-6 md:p-12 animate-in fade-in zoom-in-95 duration-500 h-full flex flex-col justify-center">
-                            {!showQuizResult ? (
-                            <div className={`rounded-2xl shadow-xl border overflow-hidden ${theme.card}`}>
-                                <div className="bg-[#2C241B] p-6 text-white flex justify-between items-center">
-                                    <div>
-                                        <h2 className="text-2xl font-serif font-bold text-amber-500">{t('quiz')}</h2>
-                                        <p className="text-stone-400 text-sm">Question {currentQuestion + 1} of {QUIZ_QUESTIONS.length}</p>
-                                    </div>
-                                    <Brain className="w-8 h-8 text-amber-500 opacity-80" />
-                                </div>
-                                <div className="p-8 md:p-12">
-                                    <h3 className={`text-xl md:text-2xl font-bold mb-8 leading-snug ${theme.text}`}>{QUIZ_QUESTIONS[currentQuestion].question}</h3>
-                                    <div className="space-y-4">
-                                        {QUIZ_QUESTIONS[currentQuestion].options.map((option, idx) => (
-                                            <button key={idx} onClick={() => handleQuizAnswer(idx)} disabled={selectedAnswer !== null} className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-center justify-between ${selectedAnswer === null ? `${isDarkMode ? 'border-stone-700 hover:border-amber-600 hover:bg-stone-800 text-stone-300' : 'border-stone-200 hover:border-amber-400 hover:bg-amber-50 text-stone-800'}` : selectedAnswer === idx ? idx === QUIZ_QUESTIONS[currentQuestion].correct ? 'border-green-500 bg-green-500/10 text-green-600' : 'border-red-500 bg-red-500/10 text-red-600' : idx === QUIZ_QUESTIONS[currentQuestion].correct ? 'border-green-500 bg-green-500/10 text-green-600' : 'border-stone-200 opacity-50'}`}>
-                                                <span className="font-medium text-lg">{option}</span>
-                                                {selectedAnswer === idx && (idx === QUIZ_QUESTIONS[currentQuestion].correct ? <CheckCircle className="w-6 h-6 text-green-600" /> : <AlertCircle className="w-6 h-6 text-red-600" />)}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className={`h-2 w-full ${isDarkMode ? 'bg-stone-800' : 'bg-stone-100'}`}><div className="h-full bg-amber-600 transition-all duration-300" style={{ width: `${((currentQuestion) / QUIZ_QUESTIONS.length) * 100}%` }} /></div>
-                            </div>
-                            ) : (
-                            <div className={`rounded-2xl shadow-xl border overflow-hidden text-center p-12 ${theme.card}`}>
-                                <div className={`w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 ${isDarkMode ? 'bg-amber-900/30' : 'bg-amber-100'}`}><Trophy className="w-12 h-12 text-amber-600" /></div>
-                                <h2 className={`text-3xl font-serif font-bold mb-2 ${theme.text}`}>{t('quizCompleted')}</h2>
-                                <p className={`mb-8 ${theme.textMuted}`}>{t('score')} <span className="font-bold text-amber-600 text-xl">{quizScore}</span> out of {QUIZ_QUESTIONS.length}</p>
-                                <div className={`p-6 rounded-lg mb-8 max-w-md mx-auto ${isDarkMode ? 'bg-stone-800' : 'bg-stone-50'}`}><p className={`italic font-serif ${theme.text}`}>{quizScore === QUIZ_QUESTIONS.length ? "Incredible! You are truly a scholar of the Ahom Kingdom." : quizScore > 2 ? "Well done! You have a good grasp of the history." : "Keep exploring the archives to learn more about this golden era."}</p></div>
-                                <button onClick={resetQuiz} className="bg-amber-600 text-white px-8 py-3 rounded-full font-bold hover:bg-amber-700 transition-colors shadow-lg shadow-amber-900/20">{t('retake')}</button>
-                                <button onClick={() => setView('grid')} className={`block mt-4 text-sm mx-auto hover:underline ${theme.textMuted}`}>{t('return')}</button>
-                            </div>
-                            )}
+                   /* QUIZ VIEW */
+) : view === 'quiz' ? (
+    <div className="max-w-3xl mx-auto p-6 md:p-12 h-screen flex flex-col">
+        {/* Scrollable Container */}
+        <div className="flex-1 overflow-y-auto pr-2 custom-scroll py-4">
+            {!showQuizResult ? (
+                <div className={`rounded-2xl shadow-xl border overflow-hidden ${theme.card}`}>
+                    <div className="bg-[#2C241B] p-6 text-white flex justify-between items-center">
+                        <div>
+                            <h2 className="text-2xl font-serif font-bold text-amber-500">{t('quiz')}</h2>
+                            <p className="text-stone-400 text-sm">
+                                Question {currentQuestion + 1} of {dbQuizzes.length || 0}
+                            </p>
                         </div>
+                    </div>
+                    
+                    {/* SAFE RENDERING: Check if the specific question exists before accessing properties */}
+                    {dbQuizzes.length > 0 && dbQuizzes[currentQuestion] ? (
+                        <div className="p-8 md:p-12">
+                            <h3 className={`text-xl md:text-2xl font-bold mb-8 ${theme.text}`}>
+                                {dbQuizzes[currentQuestion].question}
+                            </h3>
+                            <div className="space-y-4">
+                                {dbQuizzes[currentQuestion].options.map((option, idx) => (
+                                    <button 
+                                        key={idx} 
+                                        onClick={() => handleQuizAnswer(idx)} 
+                                        className={`w-full text-left p-4 rounded-xl border-2 transition-all ${theme.input}`}
+                                    >
+                                        {option}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="p-12 text-center text-stone-500">
+                            {dbQuizzes.length === 0 ? "Loading quizzes..." : "No quizzes available."}
+                        </div>
+                    )}
+                </div>
+            ) : (
+                /* Result View */
+                <div className={`rounded-2xl shadow-xl border p-12 text-center ${theme.card}`}>
+                    <h2 className={`text-3xl font-bold mb-4 ${theme.text}`}>{t('quizCompleted')}</h2>
+                    <p className={theme.textMuted}>
+                        {t('score')}: {quizScore} / {dbQuizzes.length}
+                    </p>
+                    <button 
+                        onClick={resetQuiz} 
+                        className="mt-6 px-6 py-2 bg-amber-600 text-white rounded-lg font-bold"
+                    >
+                        {t('retake')}
+                    </button>
+                </div>
+            )}
+        </div>
+    </div>
 
                     /* GALLERY VIEW */
                     ) : view === 'gallery' ? (
@@ -1518,14 +1791,13 @@ const App = () => {
                             </div>
                             {/* Updated Download Link */}
                             {paper.url && (
-                                <a 
-                                    href={paper.url} 
-                                    download 
-                                    className="text-amber-600 hover:text-amber-700 p-2 transition-colors"
-                                    title="Download PDF"
-                                >
-                                    <Download className="w-5 h-5" />
-                                </a>
+                               <button 
+                                onClick={() => handleDownload(paper.url, paper.title)}
+                                className="text-amber-600 hover:text-amber-700 p-2 transition-colors"
+                                title="Download PDF"
+                            >
+                                <Download className="w-5 h-5" />
+                            </button>
                             )}
                         </li>
                     ))}
@@ -1677,16 +1949,29 @@ const App = () => {
                             <button type="button" onClick={addContentSection} className="text-amber-600 font-bold text-sm hover:underline flex items-center gap-1">+ Add Another Section</button>
                         </div>
 
+                       {/* Update the Edit Infobox section in the Admin Modal */}
                         <div className="border-t border-stone-200 dark:border-stone-800 pt-6">
-                            <h4 className="font-bold mb-4 flex items-center gap-2 text-stone-500 uppercase text-xs tracking-wider"><Info className="w-4 h-4" /> {t('infobox')}</h4>
-                            {newItem.infobox.map((row, idx) => (
-                                <div key={idx} className="flex gap-2 mb-2">
-                                    <input type="text" className={`w-1/3 p-2 rounded border ${theme.input}`} placeholder="Label" value={row.label} onChange={e => updateInfoboxRow(idx, 'label', e.target.value)} />
-                                    <input type="text" className={`flex-1 p-2 rounded border ${theme.input}`} placeholder="Value" value={row.value} onChange={e => updateInfoboxRow(idx, 'value', e.target.value)} />
-                                    <button type="button" onClick={() => removeInfoboxRow(idx)} className="text-red-500 hover:text-red-700"><Trash2 className="w-4 h-4" /></button>
+                            <h4 className="font-bold mb-4 flex items-center gap-2 text-stone-500 uppercase text-xs tracking-wider">
+                                <Info className="w-4 h-4" /> Edit Infobox
+                            </h4>
+                           {newItem.infobox.map((row, idx) => (
+                                <div key={idx} className="flex gap-2 mb-2 items-center">
+                                    <input className={`w-1/4 p-2 rounded border ${theme.input}`} placeholder="Label" value={row.label} onChange={e => updateInfoboxRow(idx, 'label', e.target.value)} />
+                                    <input className={`flex-1 p-2 rounded border ${theme.input}`} placeholder="Value" value={row.value} onChange={e => updateInfoboxRow(idx, 'value', e.target.value)} />
+                                    <select 
+                                        className={`w-1/4 p-2 rounded border ${theme.input}`} 
+                                        value={row.type || 'text'} 
+                                        onChange={e => updateInfoboxRow(idx, 'type', e.target.value)}
+                                    >
+                                        <option value="text">Text</option>
+                                        <option value="link">Link</option>
+                                        <option value="coordinates">Coordinates</option>
+                                        <option value="italic">Italic</option>
+                                    </select>
+                                    <button type="button" onClick={() => removeInfoboxRow(idx)} className="text-red-500"><Trash2 className="w-4 h-4" /></button>
                                 </div>
                             ))}
-                            <button type="button" onClick={addInfoboxRow} className="text-sm text-amber-600 font-bold hover:underline">+ {t('addRow')}</button>
+                            <button type="button" onClick={addInfoboxRow} className="text-sm text-amber-600 font-bold">+ Add Row</button>
                         </div>
 
                         <div className="flex justify-end gap-3 pt-4 border-t border-stone-200 dark:border-stone-800 mt-4">
