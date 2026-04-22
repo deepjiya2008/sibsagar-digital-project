@@ -1102,9 +1102,16 @@ const handleEditClick = (item) => {
       <aside className={`fixed md:static inset-y-0 left-0 w-72 ${theme.sidebar} border-r z-40 flex flex-col shadow-xl md:shadow-none ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transition-transform`}>
         <div className={`p-6 border-b ${theme.sidebarHeader} flex flex-col gap-2 ${theme.divider}`}>
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => { setView('grid'); setActiveArticleId(null); }}>
-            <img src={LOGO_URL} alt="Logo" className="w-10 h-10 object-contain rounded" />
-            <span className={`font-serif font-bold text-xl leading-tight ${isDarkMode ? 'text-stone-100' : 'text-stone-800'}`}>{t('appTitle')}</span>
-          </div>
+    {LOGO_URL && (
+      <img 
+        src={LOGO_URL} 
+        alt="Sibsagar Digital Logo" 
+        className="w-10 h-10 object-contain rounded"
+        onError={(e) => { e.target.style.display = 'none'; }} 
+      />
+    )}
+    <span className={`font-serif font-bold text-xl leading-tight ${isDarkMode ? 'text-stone-100' : 'text-stone-800'}`}>{t('appTitle')}</span>
+</div>
           <p className={`text-[10px] italic pl-1 border-l-2 border-amber-500 ml-1 ${theme.textMuted}`}>{t('subtitle')}</p>
           {backendOnline ? (
               <span className="flex items-center gap-2 text-[10px] font-bold text-green-600 bg-green-100 px-2 py-1 rounded w-fit mt-2">
