@@ -2072,12 +2072,19 @@ const handleEditClick = (item) => {
             <footer className={`border-t mt-auto py-6 no-print notranslate ${isDarkMode ? 'bg-stone-950 border-stone-800' : 'bg-stone-100 border-stone-200'}`}>
                 <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4">
                     <div className="flex items-center gap-3">
-                        <img src={LOGO_URL} alt="Logo" className="w-8 h-8 object-contain rounded" />
-                        <div>
-                            <span className={`font-serif font-bold text-base ${theme.text}`}>{t('appTitle')}</span>
-                            <p className={`text-xs ${theme.textMuted}`}>{t('footerRights')}</p>
-                        </div>
-                    </div>
+    {LOGO_URL && (
+      <img 
+        src={LOGO_URL} 
+        alt="Logo" 
+        className="w-8 h-8 object-contain rounded"
+        onError={(e) => { e.target.style.display = 'none'; }}
+      />
+    )}
+    <div>
+        <span className={`font-serif font-bold text-base ${theme.text}`}>{t('appTitle')}</span>
+        <p className={`text-xs ${theme.textMuted}`}>{t('footerRights')}</p>
+    </div>
+</div>
                     
                     <div className={`text-xs text-center md:text-right ${theme.textMuted}`}>
                          <p className="mb-1">{t('footerDev')}</p>
