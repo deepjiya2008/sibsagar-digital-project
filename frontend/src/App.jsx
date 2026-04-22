@@ -20,8 +20,8 @@ const {
  * CONFIGURATION & MOCK DATA
  * ==========================================
  */
-const API_URL = "http://localhost:5000/api"; 
-const LOGO_URL = "Logo.png"; // Placeholder Logo
+const API_URL = import.meta.env.VITE_API_URL + "/api"; 
+const LOGO_URL = "<img src="/Logo.png" />"; // Placeholder Logo
 const HERO_BG = "ranghar.jpg"; // Reliable Wikimedia Link
 const InfoboxRenderer = ({ label, value, type, theme, isDarkMode, onViewMap }) => {
   return (
